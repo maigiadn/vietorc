@@ -1,48 +1,31 @@
-import io
-import torch
 from fastapi import FastAPI, UploadFile, File
-from PIL import Image
 from vietocr.tool.predictor import Predictor
 from vietocr.tool.config import Cfg
+from PIL import Image
+import io
 
-app = FastAPI(title="VietOCR API")
+app = FastAPI()
 
-# Load configuration
-config = Cfg.load_config_from_name('vgg_transformer')
+# 1. ÉP LOAD CONFIG CHUẨN VÀ CHẠY BẰNG CPU (Cho VPS thường)
+config = Cfg.load_config_from_name('vgg_seq2seq') # Dùng seq2seq cho nhẹ, vgg_transformer thì nặng hơn
+config['device'] = 'cpu' # Chốt hạ chạy CPU để tránh lỗi suy luận rác
+# config['cnn']['pretrained'] = False # Mở comment dòng này nếu bị lỗi load pretrain
 
-# Hardware Detection: Force CPU
-config['device'] = 'cpu'
-
-# Initialize Predictor
-try:
-    detector = Predictor(config)
-except Exception as e:
-    print(f"Warning: Model initialization failed. Details: {e}")
-    detector = None
+# Khởi tạo model
+predictor = Predictor(config)
 
 @app.post("/extract-text/")
 async def extract_text(file: UploadFile = File(...)):
     try:
-        # Read image
-        content = await file.read()
-        image = Image.open(io.BytesIO(content))
+        # Đọc luồng nhị phân
+        contents = await file.read()
         
-        # Convert image to RGB
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-            
-        if detector is None:
-            return {"status": "error", "message": "Predictor model is not initialized."}
-            
-        # Predict
-        extracted_text = detector.predict(image)
+        # 2. KHÚC CHÍ MẠNG: Ép convert về RGB để chống mù màu
+        image = Image.open(io.BytesIO(contents)).convert('RGB') 
         
-        return {
-            "status": "success",
-            "extracted_text": str(extracted_text)
-        }
+        # Bắt đầu đọc chữ
+        text = predictor.predict(image)
+        
+        return {"status": "success", "extracted_text": text}
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        return {"status": "error", "message": str(e)}

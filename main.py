@@ -10,8 +10,8 @@ app = FastAPI(title="VietOCR API")
 # Load configuration
 config = Cfg.load_config_from_name('vgg_transformer')
 
-# Hardware Detection: Use CUDA dynamically if available
-config['device'] = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+# Hardware Detection: Force CPU
+config['device'] = 'cpu'
 
 # Initialize Predictor
 try:
